@@ -5,8 +5,10 @@
   <!-- 关键：移动端视口 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#667eea">
-  <link rel="preload" as="image" href="images/20210312234339_887ff-low.jpg" fetchpriority="high">
+  <link rel="preload" as="image" type="image/webp" href="images/20210312234339_887ff.webp" fetchpriority="high">
   <title>春晓红雾缘~Scarlet Equinox</title>
+  <!-- 首次绘制前标记 JS 可用：默认显示高清图，只有 JS 就绪时才改为「先隐藏、加载完再淡入」 -->
+  <script>document.documentElement.classList.add('js');</script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
@@ -16,7 +18,7 @@
 
     /* ===== 海报区 ===== */
     .poster {
-      --poster-bg: url("images/20210312234339_887ff-low.jpg");
+      --poster-bg: url("images/20210312234339_887ff.webp");
       height: 100dvh;              /* dvh 适配手机地址栏 */
       min-height: 100vh;
       display: flex;
@@ -40,23 +42,27 @@
       animation: poster-bg-fade 1.2s ease 0.15s forwards;
       z-index: 0;
     }
+    /* 首屏：--poster-bg 换成内联的 40x56 低清图（440 B），首帧即出现模糊底图，
+       零额外请求。高清图放在 ::after 单独淡入。
+       注意渐变遮罩只留在 ::before 这一层：两层各叠加一次 0.25 黑，
+       实际会压暗到 1-(0.75*0.75)≈0.44，高清图淡入完成后画面会明显变黑。 */
+    .poster--first {
+      --poster-bg: url("data:image/webp;base64,UklGRkABAABXRUJQVlA4IDQBAABwCgCdASooADgAPu1aqE2ppKOiLVzMkTAdiUAXZoagEqxwtlDr/4N3+a2H5xjCupGbyjPIdjHJGFcm3Utdk+WLt5aNhqjQiA198+98tBGRvRCk11AZE5hOf7P3AADhFw12lIwCOfhDR/l5d5Krq/L4IIhSdgJLnpYKIPS+2+BXU0qVuhOYoCatbZfOK2tm4rj/RoefO0tsw2oGofUebIbK5gxThkWMq+215FRBQqlgPnohts0J+mQSPC18MXADzavcGx7RRzQIvdnpJSIkefGrJIeceTZAFBUqURRiNKXvoau5mg8uf4xmDIQxyRfsjzfoa8oFbTUGr//mDt0XAZ1FW1Qkp5wVfPOwg3VJlZ4LRU4NZe/4xFHdIxC2/o7e9TMLRJJkWfzKm/ou5yJi/j89uBMAAA==");
+      --poster-hd: url("images/20210312234339_887ff.webp");
+    }
+    /* 背景写在基础规则里，样式首次计算时就发起请求，不依赖 JS */
     .poster--first::after {
       content: "";
       position: absolute;
       inset: 0;
-      opacity: 0;
-      filter: blur(10px) saturate(0.85);
-      transition: opacity 1s ease-in-out, filter 0.5s ease-in-out;
+      background: var(--poster-hd) center / cover no-repeat;
+      opacity: 1;                     /* 无 JS 时的默认：直接可见 */
+      transition: opacity 0.8s ease;
       z-index: 0;
       pointer-events: none;
     }
-    .poster--first.poster--hd-loaded::after {
-      background:
-        linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.25)),
-        url("images/20210312234339_887ff.jpg") center / cover no-repeat;
-      opacity: 1;
-      filter: blur(0) saturate(1);
-    }
+    html.js .poster--first::after { opacity: 0; }
+    html.js .poster--first.poster--hd-loaded::after { opacity: 1; }
     .poster > * {
       position: relative;
       z-index: 1;
@@ -164,6 +170,14 @@
       .btn { aspect-ratio: 1 / 1; font-size: 1.1rem; }
       .btn .icon { font-size: 2.5rem; }
     }
+
+    /* 尊重系统「减弱动态效果」设置：poster-bg-fade 动的正是 transform/filter，
+       属于最容易引起不适的一类动画。animation: none 会丢掉 fill-forwards，
+       所以 opacity/transform/filter 必须显式复位。 */
+    @media (prefers-reduced-motion: reduce) {
+      .poster::before { animation: none; opacity: 1; transform: none; filter: none; }
+      .poster--first::after { transition: none; }
+    }
   </style>
 </head>
 <body>
@@ -188,20 +202,41 @@
   </section>
 
   <script>
-    const firstPoster = document.querySelector('.poster--first');
-    const loadFullResolutionBackground = () => {
-      const fullResolutionImage = new Image();
-      fullResolutionImage.onload = () => firstPoster.classList.add('poster--hd-loaded');
-      fullResolutionImage.onerror = () => console.error('首屏高清背景加载失败。');
-      fullResolutionImage.src = 'images/20210312234339_887ff.jpg';
-    };
-    const lowResolutionImage = new Image();
-    lowResolutionImage.onload = () => setTimeout(loadFullResolutionBackground, 250);
-    lowResolutionImage.onerror = () => {
-      console.error('首屏低分辨率背景加载失败，改为加载高清背景。');
-      loadFullResolutionBackground();
-    };
-    lowResolutionImage.src = 'images/20210312234339_887ff-low.jpg';
+    /* 首屏背景：等高清图真正到达并且解码完成后再淡入，
+       这样渐入的始终是完整的一帧，不会中途露出半张图。 */
+    (function () {
+      const poster = document.querySelector('.poster--first');
+      if (!poster) return;
+
+      let revealed = false;
+      const reveal = () => {
+        if (revealed) return;
+        revealed = true;
+        requestAnimationFrame(() => poster.classList.add('poster--hd-loaded'));
+      };
+
+      // 兜底：部分 WebKit 版本的 decode() Promise 既不 resolve 也不 reject，
+      // 一旦卡住首屏会永远停在模糊图上，所以必须有时间上限。
+      const guard = setTimeout(reveal, 8000);
+      const finish = () => { clearTimeout(guard); reveal(); };
+
+      const image = new Image();
+      image.onload = () => {
+        if (typeof image.decode === 'function') {
+          // 成功和失败都要揭开：某些浏览器（尤其 iOS Safari）对已解码的图会 reject，
+          // 但此时图片其实完全可用。
+          image.decode().then(finish, finish);
+        } else {
+          finish();                   // 不支持 decode()，退回到 onload 即可
+        }
+      };
+      // 加载失败就保持模糊底图，宁可不显示也不要露出破图
+      image.onerror = () => {
+        clearTimeout(guard);
+        console.error('首屏高清背景加载失败，保留低清底图。');
+      };
+      image.src = 'images/20210312234339_887ff.webp';
+    })();
 
     const btns = document.querySelectorAll('.btn');
     const observer = new IntersectionObserver((entries) => {
