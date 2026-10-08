@@ -5,7 +5,7 @@
   <!-- 关键：移动端视口 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#667eea">
-  <link rel="preload" as="image" href="images/20210312234339_887ff.jpg" fetchpriority="high">
+  <link rel="preload" as="image" href="images/20210312234339_887ff-low.jpg" fetchpriority="high">
   <title>春晓红雾缘</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -16,7 +16,7 @@
 
     /* ===== 海报区 ===== */
     .poster {
-      --poster-bg: url("images/20210312234339_887ff.jpg");
+      --poster-bg: url("images/20210312234339_887ff-low.jpg");
       height: 100dvh;              /* dvh 适配手机地址栏 */
       min-height: 100vh;
       display: flex;
@@ -39,6 +39,21 @@
       opacity: 0;
       animation: poster-bg-fade 1.2s ease 0.15s forwards;
       z-index: 0;
+    }
+    .poster--first::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.8s ease;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .poster--first.poster--hd-loaded::after {
+      background:
+        linear-gradient(rgba(0, 0, 0, 0.25), rgba(0, 0, 0, 0.25)),
+        url("images/20210312234339_887ff.jpg") center / cover no-repeat;
+      opacity: 1;
     }
     .poster > * {
       position: relative;
@@ -151,7 +166,7 @@
 </head>
 <body>
 
-  <section class="poster">
+  <section class="poster poster--first">
     <h1>春晓红雾缘 ~ Scarlet Equinox<br>长安区<br>五校例会02</h1>
     <p>向下滑动，探索更多</p>
     <div class="scroll-hint">↓ 滑动 ↓</div>
@@ -171,6 +186,21 @@
   </section>
 
   <script>
+    const firstPoster = document.querySelector('.poster--first');
+    const loadFullResolutionBackground = () => {
+      const fullResolutionImage = new Image();
+      fullResolutionImage.onload = () => firstPoster.classList.add('poster--hd-loaded');
+      fullResolutionImage.onerror = () => console.error('首屏高清背景加载失败。');
+      fullResolutionImage.src = 'images/20210312234339_887ff.jpg';
+    };
+    const lowResolutionImage = new Image();
+    lowResolutionImage.onload = () => setTimeout(loadFullResolutionBackground, 250);
+    lowResolutionImage.onerror = () => {
+      console.error('首屏低分辨率背景加载失败，改为加载高清背景。');
+      loadFullResolutionBackground();
+    };
+    lowResolutionImage.src = 'images/20210312234339_887ff-low.jpg';
+
     const btns = document.querySelectorAll('.btn');
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
